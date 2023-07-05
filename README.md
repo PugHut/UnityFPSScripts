@@ -13,6 +13,7 @@ A shoot Point (Where the bullet spawns out of)
 Audio (For shooting)
 Animations (Shooting, Reloading, and Aiming)
 Weapon sway does not work with an animator (So its useless)
+Reloading and Aiming animations don't currently work
 
 # THE FUTURE OF THIS
 Later I may add a player controller like Quake III or ULTRAKILL
