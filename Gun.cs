@@ -4,36 +4,39 @@ using UnityEngine;
 
 public class Gun : MonoBehaviour
 {
-    public GameObject bulletPrefab;
-    public Transform bulletSpawnPoint;
-    public float bulletForce = 20f;
+    public GameObject Bullet;
+    public Transform shootPoint;
+    public float Force = 20f;
     public AudioSource shootSound;
     public float fireRate = 0.1f;
     public GameObject muzzleFlash;
-    public GameObject silencer;
-    public AudioSource silencedShootSound;
-    public Animator gunAnimator;
-    public AnimationClip shootAnimation;
-    public AnimationClip aimAnimation;
-    public AnimationClip reloadAnimation;
+
+    public AnimationClip shootingAnimation;
+    public AnimationClip reloadingAnimation;
+
+    public Transform startAimPosition;
+    public Transform aimPosition;
 
     private bool safety = false;
-    private bool silenced = false;
-    private bool canShoot = true;
-    private float cooldownTimer = 0f;
+    private bool canShoot = true; // Flag to control shooting
+    private float cooldownTimer = 0f; // Timer to track the cooldown between shots
 
-    private int shootAnimationHash;
-    private int aimAnimationHash;
-    private int reloadAnimationHash;
+    private bool isAiming = false; // Flag to indicate aiming
+    private Vector3 originalPosition; // Original position of the gun
 
-    private void Awake()
+    private Animator gunAnimator; // Animator component for playing animations
+
+    private bool isReloading = false; // Flag to indicate reloading state
+
+    private Coroutine aimCoroutine; // Coroutine reference for aiming movement
+
+    void Start()
     {
-        shootAnimationHash = Animator.StringToHash(shootAnimation.name);
-        aimAnimationHash = Animator.StringToHash(aimAnimation.name);
-        reloadAnimationHash = Animator.StringToHash(reloadAnimation.name);
+        originalPosition = transform.localPosition;
+        gunAnimator = GetComponent<Animator>();
     }
 
-    private void Update()
+    void Update()
     {
         // Update the cooldown timer
         if (!canShoot)
@@ -48,88 +51,102 @@ public class Gun : MonoBehaviour
             }
         }
 
-        if (Input.GetMouseButton(0) && canShoot)
+        // Toggle aiming when right mouse button is pressed
+        if (Input.GetMouseButtonDown(1))
+        {
+            if (!isReloading)
+            {
+                isAiming = !isAiming;
+
+                if (isAiming)
+                {
+                    aimCoroutine = StartCoroutine(Aim(aimPosition.position));
+                }
+                else
+                {
+                    if (aimCoroutine != null)
+                        StopCoroutine(aimCoroutine);
+
+                    aimCoroutine = StartCoroutine(Aim(startAimPosition.position));
+                }
+            }
+        }
+
+        if (Input.GetMouseButton(0) && canShoot && !isReloading)
         {
             if (safety == false)
             {
                 Fire();
             }
-            else
+
+            if (safety == true)
             {
                 return;
             }
         }
 
-        if (Input.GetKeyDown(KeyCode.V))
-        {
-            silenced = !silenced;
-            silencer.SetActive(silenced);
-            muzzleFlash.SetActive(!silenced);
-        }
-
-        if (Input.GetKeyDown(KeyCode.B))
-        {
-            safety = !safety;
-        }
-
-        if (Input.GetKeyDown(KeyCode.R))
+        if (Input.GetKeyDown(KeyCode.R) && canShoot && !isReloading)
         {
             Reload();
         }
     }
 
-    private void Fire()
+    void Fire()
     {
-        GameObject bullet = Instantiate(bulletPrefab, bulletSpawnPoint.position, bulletSpawnPoint.rotation);
+        GameObject bullet = Instantiate(Bullet, shootPoint.position, shootPoint.rotation);
         Rigidbody bulletRigidbody = bullet.GetComponent<Rigidbody>();
-        bulletRigidbody.AddForce(bulletSpawnPoint.forward * bulletForce, ForceMode.Impulse);
+        bulletRigidbody.AddForce(shootPoint.forward * Force, ForceMode.Impulse);
 
-        if (silenced)
-        {
-            silencedShootSound.Play();
-        }
-        else
-        {
-            shootSound.Play();
-        }
-
+        shootSound.Play();
         canShoot = false;
         cooldownTimer = 0f;
 
-        // Set the shooting animation state to loop
-        gunAnimator.Play(shootAnimationHash, -1, 0f);
-        gunAnimator.SetBool(shootAnimationHash, true);
-
-        // Stop aim and reload animations if playing
-        gunAnimator.SetBool(aimAnimationHash, false);
-        gunAnimator.SetBool(reloadAnimationHash, false);
+        // Trigger shooting animation
+        if (shootingAnimation != null)
+        {
+            gunAnimator.Play(shootingAnimation.name, 0, 0); // Play from the beginning of the animation
+        }
     }
 
-    private void Reload()
+    void Reload()
     {
-        // Play reload animation
-        gunAnimator.Play(reloadAnimationHash);
+        if (!isReloading)
+        {
+            // Perform the reloading logic here
+            Debug.Log("Reloading...");
 
-        // Stop aim and shooting animations if playing
-        gunAnimator.SetBool(aimAnimationHash, false);
-        gunAnimator.SetBool(shootAnimationHash, false);
+            // Trigger reloading animation
+            if (reloadingAnimation != null)
+            {
+                gunAnimator.Play(reloadingAnimation.name);
+            }
 
-        // Add your reloading logic here
-        // This is where you can handle the reloading process, such as updating ammo count, playing reload sound, etc.
+            isReloading = true;
+            StartCoroutine(CompleteReload());
+        }
     }
 
-    public void StartAimAnimation()
+    IEnumerator CompleteReload()
     {
-        // Start aim animation
-        gunAnimator.SetBool(aimAnimationHash, true);
-
-        // Stop shooting animation if playing
-        gunAnimator.SetBool(shootAnimationHash, false);
+        yield return new WaitForSeconds(reloadingAnimation.length);
+        isReloading = false;
+        canShoot = true;
     }
 
-    public void StopAimAnimation()
+    IEnumerator Aim(Vector3 targetPosition)
     {
-        // Stop aim animation
-        gunAnimator.SetBool(aimAnimationHash, false);
+        float duration = 0.2f;
+        float elapsed = 0f;
+        Vector3 initialPosition = transform.localPosition;
+
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            transform.localPosition = Vector3.Lerp(initialPosition, targetPosition, t);
+            yield return null;
+        }
+
+        transform.localPosition = targetPosition;
     }
 }
